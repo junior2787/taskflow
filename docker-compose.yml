@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taskflow-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: taskflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./packages/server
+      dockerfile: Dockerfile
+    container_name: taskflow-server
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/taskflow?schema=public
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars
+      PORT: 3001
+      NODE_ENV: development
+      CLIENT_URL: http://localhost:5173
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./packages/server:/app
+      - /app/node_modules
+
+  client:
+    build:
+      context: ./packages/client
+      dockerfile: Dockerfile
+    container_name: taskflow-client
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+    depends_on:
+      - server
+    volumes:
+      - ./packages/client:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
